@@ -162,8 +162,15 @@ func (vdb *VCoordinationDatabase) addNode(vnode *VCoordinationNode) error {
 // in all clusters (main and sandboxes)
 func (vdb *VCoordinationDatabase) addHosts(hosts []string, scName string,
 	existingHostNodeMap vHostNodeMap) error {
-	totalHostCount := len(hosts) + len(existingHostNodeMap)
+	totalHostCount := len(hosts) + len(existingHostNodeMap) + len(vdb.UnboundNodes)
 	nodeNameToHost := genNodeNameToHostMap(existingHostNodeMap)
+	// The GenVNodeName(...) function below will generate node names based on nodeNameToHost and totalHostCount.
+	// If a name already exists, it won't be re-generated.
+	// In this case, we need to add unbound node names into this map too.
+	// Otherwise, the new nodes will reuse the existing unbound node names, then make a clash later on.
+	for _, vnode := range vdb.UnboundNodes {
+		nodeNameToHost[vnode.Name] = vnode.Address
+	}
 	for _, host := range hosts {
 		vNode := makeVCoordinationNode()
 		name, ok := util.GenVNodeName(nodeNameToHost, vdb.Name, totalHostCount)
