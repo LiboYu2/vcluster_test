@@ -177,6 +177,7 @@ func (vcc *VClusterCommands) unsandboxPreCheck(vdb *VCoordinationDatabase,
 		vcc.Log.PrintWarning("Failed to retrieve sandbox details for '%s', "+
 			"main cluster might need to re-ip if sandbox host IPs have changed", vdbInfo.SandboxName)
 		vdb.HostNodeMap = originalHostNodeMap
+		vcc.updateSandboxDetailsFromMainCluster(vdb, options, vdbInfo)
 	}
 
 	// run re-ip on both of main cluster and the sandbox.
@@ -239,6 +240,30 @@ func (vcc *VClusterCommands) updateSandboxDetails(
 		}
 	}
 	return nil
+}
+
+// update processed vdb info object with the sandbox details from main cluster vdb
+// this is used when there is no sandbox host in the hostlist or there are no UP sandbdox nodes.
+func (vcc *VClusterCommands) updateSandboxDetailsFromMainCluster(
+	vdb *VCoordinationDatabase,
+	options *VUnsandboxOptions,
+	info *ProcessedVDBInfo,
+) {
+	for _, vnode := range vdb.HostNodeMap {
+		if vnode.Sandbox == info.SandboxName {
+			info.SandboxedHosts = append(info.SandboxedHosts, vnode.Address)
+		}
+		if vnode.State != util.NodeDownState && vnode.Subcluster == options.SCName {
+			vcc.Log.Info("VIV node state ", "addr", vnode.Address, "state", vnode.State, "sand", vnode.Sandbox, "sc", vnode.Subcluster)
+			info.hasUpNodeInSC = true
+			info.upSCHosts = append(info.upSCHosts, vnode.Address)
+			if vnode.IsPrimary {
+				info.UpSandboxHost = vnode.Address
+			}
+			info.SandboxedSubclusterHosts = append(info.SandboxedSubclusterHosts, vnode.Address)
+			info.SandboxedNodeNameAddressMap[vnode.Name] = vnode.Address
+		}
+	}
 }
 
 func (vcc *VClusterCommands) processMainClusterNodes(
